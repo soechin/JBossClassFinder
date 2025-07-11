@@ -18,3 +18,7 @@ buildNumber.properties
 
 # macOS
 .DS_Store
+
+# 掃描結果
+all-classes.txt
+duplicate-classes.txt

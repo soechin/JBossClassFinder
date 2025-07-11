@@ -31,61 +31,117 @@ public class JBossClassFinder {
     }
 
     // 從控制台讀取 jboss 資料夾路徑
-    System.out.print("請輸入 jboss 資料夾路徑: ");
+    System.out.print("請輸入 jboss/wildfly 資料夾路徑: ");
     String jbossHome = console.readLine().trim();
 
     Path jbossPath = Paths.get(jbossHome);
     System.out.println("home: " + jbossPath);
 
-    // 獲取 standalone 資料夾
+    // 獲取 jboss/server/default 資料夾
+    Path defaultPath = jbossPath.resolve("server/default");
+    if (Files.exists(jbossPath.resolve("lib")) &&
+        Files.exists(jbossPath.resolve("deploy"))) {
+      defaultPath = jbossPath;
+    }
+
+    // 獲取 wildfly/standalone 資料夾
     Path standalonePath = jbossPath.resolve("standalone");
     if (Files.exists(jbossPath.resolve("lib")) &&
         Files.exists(jbossPath.resolve("deployments"))) {
       standalonePath = jbossPath;
     }
 
-    if (!Files.exists(standalonePath)) {
-      System.err.println("找不到 standalone 資料夾");
-      return;
-    }
+    // 如果是 jboss，則掃描 default 資料夾
+    if (Files.exists(defaultPath)) {
+      System.out.println("default: " + defaultPath);
 
-    System.out.println("standalone: " + standalonePath);
-
-    // 獲取 deployments 資料夾
-    Path deploymentsPath = standalonePath.resolve("deployments");
-    if (!Files.exists(deploymentsPath)) {
-      System.err.println("找不到 deployments 資料夾");
-      return;
-    }
-
-    System.out.println("deployments: " + deploymentsPath);
-
-    // 列出 deployments 資料夾中的 war 資料夾
-    File[] warDirs = deploymentsPath.toFile().listFiles((dir, name) -> {
-      return name.toLowerCase().endsWith(".war");
-    });
-
-    for (int i = 0; i < warDirs.length; i++) {
-      System.out.println("  [" + (i + 1) + "] " + warDirs[i].getName());
-    }
-
-    int choice = -1;
-    while (choice < 1 || choice > warDirs.length) {
-      System.out.print("請選擇 war 資料夾[1-" + warDirs.length + "]: ");
-      try {
-        choice = Integer.parseInt(console.readLine().trim());
-      } catch (NumberFormatException e) {
-        System.err.println("請輸入有效的數字");
+      Path deployPath = defaultPath.resolve("deploy");
+      if (!Files.exists(deployPath)) {
+        System.err.println("找不到 deploy 資料夾");
+        return;
       }
+
+      System.out.println("deploy: " + deployPath);
+
+      // 列出 deploy 資料夾中的 war 資料夾
+      File[] warDirs = deployPath.toFile().listFiles((dir, name) -> {
+        return name.toLowerCase().endsWith(".war");
+      });
+
+      for (int i = 0; i < warDirs.length; i++) {
+        System.out.println("  [" + (i + 1) + "] " + warDirs[i].getName());
+      }
+
+      int choice = -1;
+      while (choice < 1 || choice > warDirs.length) {
+        System.out.print("請選擇 war 資料夾[1-" + warDirs.length + "]: ");
+        try {
+          choice = Integer.parseInt(console.readLine().trim());
+        } catch (NumberFormatException e) {
+          System.err.println("請輸入有效的數字");
+        }
+      }
+
+      Path warPath = warDirs[choice - 1].toPath();
+      System.out.println("war: " + warPath);
+
+      scanWarPath(defaultPath, warPath);
     }
+    // 如果是 wildfly，則掃描 standalone 資料夾
+    else if (Files.exists(standalonePath)) {
+      System.out.println("standalone: " + standalonePath);
 
-    File warDir = warDirs[choice - 1];
-    System.out.println("war: " + warDir.toPath());
+      // 獲取 deployments 資料夾
+      Path deploymentsPath = standalonePath.resolve("deployments");
+      if (!Files.exists(deploymentsPath)) {
+        System.err.println("找不到 deployments 資料夾");
+        return;
+      }
 
+      System.out.println("deployments: " + deploymentsPath);
+
+      // 列出 deployments 資料夾中的 war 資料夾
+      File[] warDirs = deploymentsPath.toFile().listFiles((dir, name) -> {
+        return name.toLowerCase().endsWith(".war");
+      });
+
+      for (int i = 0; i < warDirs.length; i++) {
+        System.out.println("  [" + (i + 1) + "] " + warDirs[i].getName());
+      }
+
+      int choice = -1;
+      while (choice < 1 || choice > warDirs.length) {
+        System.out.print("請選擇 war 資料夾[1-" + warDirs.length + "]: ");
+        try {
+          choice = Integer.parseInt(console.readLine().trim());
+        } catch (NumberFormatException e) {
+          System.err.println("請輸入有效的數字");
+        }
+      }
+
+      Path warPath = warDirs[choice - 1].toPath();
+      System.out.println("war: " + warPath);
+
+      scanWarPath(standalonePath, warPath);
+    }
+    // 如果都不是，則輸出錯誤訊息
+    else {
+      System.err.println("找不到 jboss/server/default 或 wildfly/standalone 資料夾");
+      return;
+    }
+  }
+
+  /**
+   * 掃描 standalone/lib 及 WEB-INF/lib 資料夾中的 jar 檔案，並輸出到檔案
+   * 
+   * @param standalonePath default 或 standalone 資料夾路徑
+   * @param warPath        war 資料夾路徑
+   */
+  private static void scanWarPath(Path standalonePath, Path warPath) {
     // 列出 standalone/lib 及 WEB-INF/lib 資料夾中的 jar 檔案
     List<File> jarFiles = new ArrayList<>();
     Path standaloneLibPath = standalonePath.resolve("lib");
-    Path webinfLibPath = warDir.toPath().resolve("WEB-INF/lib");
+    Path webinfLibPath = warPath.resolve("WEB-INF/lib");
 
     if (Files.exists(standaloneLibPath)) {
       File[] files = standaloneLibPath.toFile().listFiles((dir, name) -> {
@@ -153,6 +209,12 @@ public class JBossClassFinder {
     }
   }
 
+  /**
+   * 掃描 jar 檔案中的 class 檔案
+   * 
+   * @param jarFile jar 檔案
+   * @return class 檔案列表
+   */
   private static String[] scanJarFile(File jarFile) {
     List<String> classFiles = new ArrayList<>();
     try (JarFile jar = new JarFile(jarFile)) {
